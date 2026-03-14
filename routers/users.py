@@ -5,7 +5,7 @@ from starlette import status
 from config.db_config import get_db
 from crud import users
 from models.users import User
-from schemas.users import UserRequest, UserAuthResponse, UserInfoResponse
+from schemas.users import UserRequest, UserAuthResponse, UserInfoResponse, UserUpdateRequest, UserChangePasswordRequest
 from utils.auth import get_current_user
 from utils.response import success_response
 
@@ -46,9 +46,35 @@ async def login(user_data:UserRequest,db:AsyncSession=Depends(get_db)):
     response_data=UserAuthResponse(token=token,user_info=UserInfoResponse.model_validate(user))
     return success_response(msg="登录成功",data=response_data)
 
+
+#查询token用户-》封装crud-》整合函数-》路由导入
 @router.get("/info")
 async def get_user_info(user:User=Depends(get_current_user)):
     return success_response(msg="获取用户信息成功",data=UserInfoResponse.model_validate(user))
+
+#更新用户信息。验token-》更新（用户输入数据put提交-》请求-》定义pydantic模型类）——》响应结果
+@router.put("/update")
+async def updata_user_info(user_data:UserUpdateRequest,user:User=Depends(get_current_user),db:AsyncSession=Depends(get_db)):
+
+    user=await users.update_user(db,user.username,user_data)
+
+    return success_response(msg="更新用户信息成功",data=UserInfoResponse.model_validate(user))
+
+
+
+#更新用户密码
+@router.put("/password")
+async def update_passwd(
+        passwd_data:UserChangePasswordRequest,
+        user:User=Depends(get_current_user),
+        db:AsyncSession=Depends(get_db)):
+    res_change_pwd=await users.change_password(db,user,passwd_data.old_passwd,passwd_data.new_passwd)
+    if not res_change_pwd:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="修改失败，请重试")
+    return success_response(msg="更新密码成功")
+
+
+
 
 
 

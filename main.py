@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from sqlalchemy.testing.suite.test_reflection import users
 from starlette.middleware.cors import CORSMiddleware
-from routers import news,users
+from routers import news, users, favorite
 from utils.exception_handlers import register_exception_handlers
 
 #cors中间件要同源，协议端口要一致
@@ -29,3 +29,4 @@ async def c_hello():
 
 app.include_router(news.router)
 app.include_router(users.router)
+app.include_router(favorite.router)

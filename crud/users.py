@@ -2,11 +2,13 @@ import uuid
 from datetime import datetime, timedelta
 from time import sleep
 
-from sqlalchemy import select
+from fastapi import HTTPException
+from pygments.lexer import default
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.users import User, UserToken
-from schemas.users import UserRequest
+from schemas.users import UserRequest, UserUpdateRequest
 from utils import security
 
 
@@ -66,3 +68,33 @@ async def get_user_by_token(db:AsyncSession,token:str):
     return res.scalar_one_or_none()
 
 
+#更新用户信息
+async def update_user(db:AsyncSession,username:str,user_data:UserUpdateRequest):
+    # update(User).where(User.username==username).values(字段=val,字段=val)
+    # user_data是一个pydantic模型类实例，包含用户更新的字段和对应的值，需要将其转换为字典格式,**解包后作为参数传递
+    # 没有设置的字段，保持数据库中的原值不变
+    query=update(User).where(User.username==username).values(**user_data.model_dump(
+        exclude_none=True,
+        exclude_unset=True,
+    ))
+    res=await db.execute(query)
+    await db.commit()
+
+    if res.rowcount==0:
+        raise HTTPException(status_code=404,detail="该用户不存在")
+
+    update_user=await get_user_by_username(db,username)
+    return update_user
+
+async def change_password(db:AsyncSession,user:User,old_password:str,new_password:str):
+    if not security.verify_password(old_password,user.password):
+        raise False
+
+    hashed_new_psw=security.get_hash_password(new_password)
+    user.password=hashed_new_psw
+    #更新：由sqlalchemy自动处理，接管user，确保可以commit
+    #规避session过期或者关闭到导致无法commit的问题
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return True
